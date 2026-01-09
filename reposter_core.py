@@ -28,7 +28,7 @@ FEEDS = {
 # === LIJSTEN (max 10) ===
 # link mag: at://.../app.bsky.graph.list/...  OF  https://bsky.app/profile/<actor>/lists/<rkey>
 LIJSTEN = {
-    "lijst 1": {"link": "", "note": ""},
+    "lijst 1": {"link": "https://bsky.app/profile/did:plc:jaka644beit3x4vmmg6yysw7/lists/3m3iga6wnmz2p", "note": "Beautygrouplist"},
     "lijst 2": {"link": "", "note": ""},
     "lijst 3": {"link": "", "note": ""},
     "lijst 4": {"link": "", "note": ""},
