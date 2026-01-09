@@ -40,11 +40,11 @@ jobs:
           REPOST_LOG_FILE: reposted_beautyfan.txt
 
           # ⬇️ Zet hier je waarden om “overslaan” te verminderen
-          HOURS_BACK: "5"
+          HOURS_BACK: "2"
           MAX_PER_RUN: "100"
-          MAX_PER_USER: "10"           # <-- test hoger om te zien of dit de bottleneck is
-          LIST_MEMBER_LIMIT: "500"     # <-- test hoger als je lijst groot is
-          AUTHOR_POSTS_PER_MEMBER: "100" # <-- belangrijk: anders scan je te weinig per account
+          MAX_PER_USER: "3"           # <-- test hoger om te zien of dit de bottleneck is
+          LIST_MEMBER_LIMIT: "1000"     # <-- test hoger als je lijst groot is
+          AUTHOR_POSTS_PER_MEMBER: "15" # <-- belangrijk: anders scan je te weinig per account
           FEED_MAX_ITEMS: "1000"
 
         run: |
