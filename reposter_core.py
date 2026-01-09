@@ -50,9 +50,9 @@ EXCEPTION_HANDLES = {
 # ============================================================
 # RUNTIME CONFIG (via env)
 # ============================================================
-HOURS_BACK = int(os.getenv("HOURS_BACK", "5"))
+HOURS_BACK = int(os.getenv("HOURS_BACK", "2"))
 MAX_PER_RUN = int(os.getenv("MAX_PER_RUN", "100"))
-MAX_PER_USER = int(os.getenv("MAX_PER_USER", "10"))
+MAX_PER_USER = int(os.getenv("MAX_PER_USER", "3"))
 REPOST_LOG_FILE = os.getenv("REPOST_LOG_FILE", "reposted_beautyfan.txt")
 
 LIST_MEMBER_LIMIT = int(os.getenv("LIST_MEMBER_LIMIT", "200"))
