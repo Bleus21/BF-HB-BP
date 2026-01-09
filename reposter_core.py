@@ -25,9 +25,9 @@ FEEDS = {
 LIJSTEN = {
     "lijst 1": {
         "link": "https://bsky.app/profile/did:plc:jaka644beit3x4vmmg6yysw7/lists/3m3iga6wnmz2p",
-        "note": "beautyfan test lijst",
+        "note": "beautygrouplijst",
     },
-    "lijst 2": {"link": "", "note": ""},
+    "lijst 2": {"link": "https://bsky.app/profile/did:plc:cxrt7ggxkamgzxa47cggtees/lists/3majejgaw3m2q", "note": "photoaccounts"},
     "lijst 3": {"link": "", "note": ""},
     "lijst 4": {"link": "", "note": ""},
     "lijst 5": {"link": "", "note": ""},
