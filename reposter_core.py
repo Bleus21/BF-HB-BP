@@ -9,9 +9,6 @@ from typing import Optional, Dict, List, Set, Tuple
 # CONFIG — vul hier je bronnen in (leeg = skip)
 # ============================================================
 
-# === FEEDS (max 10) ===
-# link mag: at://.../app.bsky.feed.generator/...  OF  https://bsky.app/profile/<actor>/feed/<rkey>
-# note = alleen voor jouw overzicht (optioneel; wordt alleen gelogd)
 FEEDS = {
     "feed 1": {"link": "", "note": ""},
     "feed 2": {"link": "", "note": ""},
@@ -25,10 +22,11 @@ FEEDS = {
     "feed 10": {"link": "", "note": ""},
 }
 
-# === LIJSTEN (max 10) ===
-# link mag: at://.../app.bsky.graph.list/...  OF  https://bsky.app/profile/<actor>/lists/<rkey>
 LIJSTEN = {
-    "lijst 1": {"link": "https://bsky.app/profile/did:plc:jaka644beit3x4vmmg6yysw7/lists/3m3iga6wnmz2p", "note": "Beautygrouplist"},
+    "lijst 1": {
+        "link": "https://bsky.app/profile/did:plc:jaka644beit3x4vmmg6yysw7/lists/3m3iga6wnmz2p",
+        "note": "beautyfan test lijst",
+    },
     "lijst 2": {"link": "", "note": ""},
     "lijst 3": {"link": "", "note": ""},
     "lijst 4": {"link": "", "note": ""},
@@ -40,38 +38,26 @@ LIJSTEN = {
     "lijst 10": {"link": "", "note": ""},
 }
 
-# === UITZONDERING (max 10 handles) ===
 # ============================================================
 # UITZONDERING
-# ------------------------------------------------------------
-# De onderstaande accounts (handles) zijn UITGEZONDERD van
-# één specifieke regel:
-#
-# 👉 Replies zijn voor deze accounts WEL toegestaan.
-#
-# Voor alle andere regels geldt GEEN uitzondering:
-# - ❌ geen reposts / boosts
-# - ❌ geen quote-posts
-# - ❌ geen text-only posts
-# - ❌ geen link-only (external) posts
-# - ✅ media (images/video) blijft VERPLICHT
+# - handles in deze lijst: replies WEL toegestaan
+# - verder blijven alle regels hetzelfde (media verplicht, geen quotes, etc.)
 # ============================================================
 EXCEPTION_HANDLES = {
     # "voorbeeld1.bsky.social",
 }
 
 # ============================================================
-# RUNTIME CONFIG (via env, zodat workflows per account kunnen verschillen)
+# RUNTIME CONFIG (via env)
 # ============================================================
-HOURS_BACK = int(os.getenv("HOURS_BACK", "3"))
+HOURS_BACK = int(os.getenv("HOURS_BACK", "5"))
 MAX_PER_RUN = int(os.getenv("MAX_PER_RUN", "100"))
-MAX_PER_USER = int(os.getenv("MAX_PER_USER", "5"))
-
+MAX_PER_USER = int(os.getenv("MAX_PER_USER", "10"))
 REPOST_LOG_FILE = os.getenv("REPOST_LOG_FILE", "reposted_beautyfan.txt")
 
-# Caps voor lijsten (houd runs voorspelbaar)
-LIST_MEMBER_LIMIT = int(os.getenv("LIST_MEMBER_LIMIT", "50"))          # max leden per lijst
-AUTHOR_POSTS_PER_MEMBER = int(os.getenv("AUTHOR_POSTS_PER_MEMBER", "10"))  # posts per lid om te scannen
+LIST_MEMBER_LIMIT = int(os.getenv("LIST_MEMBER_LIMIT", "200"))
+AUTHOR_POSTS_PER_MEMBER = int(os.getenv("AUTHOR_POSTS_PER_MEMBER", "50"))
+FEED_MAX_ITEMS = int(os.getenv("FEED_MAX_ITEMS", "1000"))
 
 # ============================================================
 # helpers
@@ -121,7 +107,7 @@ def has_media(record) -> bool:
         return True
     if getattr(embed, "video", None):
         return True
-    # external-only telt niet als media
+    # external-only (link) telt niet
     if getattr(embed, "external", None):
         return False
     # recordWithMedia media-check (quote skippen we elders)
@@ -175,8 +161,7 @@ def normalize_list_uri(client: Client, s: str) -> Optional[str]:
         return None
     return f"at://{did}/app.bsky.graph.list/{rkey}"
 
-def fetch_feed_items(client: Client, feed_uri: str, max_items: int = 1000) -> List:
-    """Paginated get_feed best-effort."""
+def fetch_feed_items(client: Client, feed_uri: str, max_items: int) -> List:
     items: List = []
     cursor = None
     while True:
@@ -192,7 +177,6 @@ def fetch_feed_items(client: Client, feed_uri: str, max_items: int = 1000) -> Li
     return items[:max_items]
 
 def fetch_list_members(client: Client, list_uri: str, limit: int) -> List[Tuple[str, str]]:
-    """Return (handle, did) tuples best-effort."""
     members: List[Tuple[str, str]] = []
     cursor = None
     while True:
@@ -227,49 +211,59 @@ def build_candidates_from_items(
     items: List,
     done: Set[str],
     cutoff: datetime,
-    exception_handles_lc: Set[str],
+    exc_handles_lc: Set[str],
+    stats: Dict[str, int],
 ) -> List[Dict]:
     candidates: List[Dict] = []
     for item in items:
         post = getattr(item, "post", None)
         if not post:
+            stats["skip_no_post"] += 1
             continue
         record = getattr(post, "record", None)
         if not record:
+            stats["skip_no_record"] += 1
             continue
 
         uri = getattr(post, "uri", None)
         cid = getattr(post, "cid", None)
         if not uri or not cid:
+            stats["skip_no_uri_cid"] += 1
             continue
 
         # boosts/reposts overslaan
         if hasattr(item, "reason") and item.reason is not None:
+            stats["skip_boost_repost"] += 1
             continue
 
         author = getattr(post, "author", None)
         author_handle = (getattr(author, "handle", "") or "").lower()
         author_did = getattr(author, "did", None)
-        is_exception = author_handle in exception_handles_lc
+        is_exception = author_handle in exc_handles_lc
 
         # replies overslaan (behalve uitzonderingen)
         if getattr(record, "reply", None) and not is_exception:
+            stats["skip_reply"] += 1
             continue
 
-        # quotes overslaan
         if is_quote_post(record):
+            stats["skip_quote"] += 1
             continue
 
-        # alleen media
         if not has_media(record):
+            stats["skip_no_media"] += 1
             continue
 
-        # al eens gedaan?
         if uri in done:
+            stats["skip_in_log"] += 1
             continue
 
         created_dt = parse_time(record, post)
-        if not created_dt or created_dt < cutoff:
+        if not created_dt:
+            stats["skip_no_time"] += 1
+            continue
+        if created_dt < cutoff:
+            stats["skip_too_old"] += 1
             continue
 
         candidates.append({
@@ -279,25 +273,24 @@ def build_candidates_from_items(
             "author_key": author_did or author_handle or uri,
         })
 
+        stats["kept_candidate"] += 1
+
     candidates.sort(key=lambda x: x["created"])
     return candidates
 
-def dedupe_candidates(cands: List[Dict]) -> List[Dict]:
+def dedupe_candidates(cands: List[Dict], stats: Dict[str, int]) -> List[Dict]:
     seen: Set[str] = set()
     out: List[Dict] = []
     for c in cands:
         u = c["uri"]
         if u in seen:
+            stats["dedupe_dropped"] += 1
             continue
         seen.add(u)
         out.append(c)
     out.sort(key=lambda x: x["created"])
     return out
 
-
-# ============================================================
-# main
-# ============================================================
 
 def main():
     username = os.getenv("BSKY_USERNAME", "").strip()
@@ -312,10 +305,25 @@ def main():
 
     cutoff = datetime.now(timezone.utc) - timedelta(hours=HOURS_BACK)
     done = load_repost_log(REPOST_LOG_FILE)
-    exception_handles_lc = {h.lower() for h in EXCEPTION_HANDLES if h.strip()}
+    exc = {h.lower() for h in EXCEPTION_HANDLES if h.strip()}
+
+    stats = {
+        "skip_no_post": 0,
+        "skip_no_record": 0,
+        "skip_no_uri_cid": 0,
+        "skip_boost_repost": 0,
+        "skip_reply": 0,
+        "skip_quote": 0,
+        "skip_no_media": 0,
+        "skip_in_log": 0,
+        "skip_no_time": 0,
+        "skip_too_old": 0,
+        "kept_candidate": 0,
+        "dedupe_dropped": 0,
+    }
 
     # ---- normalize feeds ----
-    feed_uris: List[Tuple[str, str, str]] = []  # (key, note, at_uri)
+    feed_uris: List[Tuple[str, str, str]] = []
     for key, obj in FEEDS.items():
         link = (obj.get("link") or "").strip()
         note = (obj.get("note") or "").strip()
@@ -345,19 +353,14 @@ def main():
     if not list_uris:
         log("ℹ️ Geen LIJSTEN ingevuld — lijsten blok geskipt.")
 
-    # ---- collect candidates ----
     all_candidates: List[Dict] = []
 
     # Feeds
     for key, note, furi in feed_uris:
         label = f"{key}" + (f" ({note})" if note else "")
         log(f"📥 Feed verwerken: {label}")
-        try:
-            items = fetch_feed_items(client, furi, max_items=1000)
-        except Exception as e:
-            log(f"⚠️ Feed fetch error ({key}): {e}")
-            items = []
-        all_candidates.extend(build_candidates_from_items(items, done, cutoff, exception_handles_lc))
+        items = fetch_feed_items(client, furi, max_items=FEED_MAX_ITEMS)
+        all_candidates.extend(build_candidates_from_items(items, done, cutoff, exc, stats))
 
     # Lists
     for key, note, luri in list_uris:
@@ -365,18 +368,35 @@ def main():
         log(f"📋 Lijst verwerken: {label}")
 
         members = fetch_list_members(client, luri, limit=LIST_MEMBER_LIMIT)
-        if not members:
-            continue
+        log(f"👥 Leden opgehaald: {len(members)} (cap {LIST_MEMBER_LIMIT})")
 
         for (h, d) in members:
             actor = d or h
             if not actor:
                 continue
             author_items = fetch_author_feed(client, actor, AUTHOR_POSTS_PER_MEMBER)
-            all_candidates.extend(build_candidates_from_items(author_items, done, cutoff, exception_handles_lc))
+            all_candidates.extend(build_candidates_from_items(author_items, done, cutoff, exc, stats))
 
-    candidates = dedupe_candidates(all_candidates)
+    candidates = dedupe_candidates(all_candidates, stats)
     log(f"🧩 Candidates totaal: {len(candidates)} (na dedupe)")
+
+    # ---- print stats ----
+    log("📌 Skip stats:")
+    for k in [
+        "skip_in_log",
+        "skip_no_media",
+        "skip_reply",
+        "skip_quote",
+        "skip_boost_repost",
+        "skip_too_old",
+        "skip_no_time",
+        "skip_no_uri_cid",
+        "skip_no_record",
+        "skip_no_post",
+        "dedupe_dropped",
+        "kept_candidate",
+    ]:
+        log(f"  - {k}: {stats[k]}")
 
     # ---- execute ----
     reposted = 0
@@ -387,31 +407,28 @@ def main():
         if reposted >= MAX_PER_RUN:
             break
 
-        author_key = c["author_key"]
-        per_user_count.setdefault(author_key, 0)
-        if per_user_count[author_key] >= MAX_PER_USER:
+        ak = c["author_key"]
+        per_user_count.setdefault(ak, 0)
+        if per_user_count[ak] >= MAX_PER_USER:
             continue
-
-        uri = c["uri"]
-        cid = c["cid"]
 
         try:
             client.app.bsky.feed.repost.create(
                 repo=client.me.did,
                 record={
-                    "subject": {"uri": uri, "cid": cid},
+                    "subject": {"uri": c["uri"], "cid": c["cid"]},
                     "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 },
             )
             reposted += 1
-            per_user_count[author_key] += 1
-            done.add(uri)
+            per_user_count[ak] += 1
+            done.add(c["uri"])
 
             try:
                 client.app.bsky.feed.like.create(
                     repo=client.me.did,
                     record={
-                        "subject": {"uri": uri, "cid": cid},
+                        "subject": {"uri": c["uri"], "cid": c["cid"]},
                         "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     },
                 )
@@ -427,6 +444,7 @@ def main():
 
     save_repost_log(REPOST_LOG_FILE, done)
     log(f"🔥 Done — {reposted} reposts ({liked} liked).")
+
 
 if __name__ == "__main__":
     main()
