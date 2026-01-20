@@ -27,7 +27,7 @@ LIJSTEN = {
         "link": "https://bsky.app/profile/did:plc:jaka644beit3x4vmmg6yysw7/lists/3m3iga6wnmz2p",
         "note": "beautygrouplijst",
     },
-    "lijst 2": {"link": "", "note": ""},
+    "lijst 2": {"link": "https://bsky.app/profile/did:plc:o47xqce6eihq6wj75ntjftuw/lists/3mcoz63nyqp27", "note": "femdombleusky"},
     "lijst 3": {"link": "", "note": ""},
     "lijst 4": {"link": "", "note": ""},
     "lijst 5": {"link": "", "note": ""},
