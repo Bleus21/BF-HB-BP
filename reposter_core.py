@@ -10,7 +10,7 @@ from typing import Optional, Dict, List, Set, Tuple
 # ============================================================
 
 FEEDS = {
-    "feed 1": {"link": "", "note": "Bskypromo"},
+    "feed 1": {"link": "https://bsky.app/profile/did:plc:jaka644beit3x4vmmg6yysw7/feed/aaaawpev7bdg4", "note": "Bskypromo"},
     "feed 2": {"link": "https://bsky.app/profile/did:plc:jaka644beit3x4vmmg6yysw7/feed/aaabjeu5724em", "note": "mention"},
     "feed 3": {"link": "https://bsky.app/profile/did:plc:jaka644beit3x4vmmg6yysw7/feed/aaanb6r7f4fxu", "FemdomBleusky": ""},
     "feed 4": {"link": "", "note": ""},
